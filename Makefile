@@ -1,10 +1,10 @@
 .PHONY: run build test docker-up docker-down
 
 run:
-	go run cmd/main.go
+	go run cmd/guardian/main.go
 
 build:
-	go build -o bin/guardian cmd/main.go
+	go build -o bin/guardian cmd/guardian/main.go
 
 test:
 	go test -v ./...

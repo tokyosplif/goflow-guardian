@@ -3,7 +3,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o guardian ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o guardian ./cmd/guardian
 
 FROM alpine:latest
 WORKDIR /root/
