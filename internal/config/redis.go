@@ -2,10 +2,6 @@ package config
 
 import "errors"
 
-const (
-	errMsgRedisAddrRequired = "redis addr is required"
-)
-
 type Redis struct {
 	Addr     string `env:"REDIS_ADDR" envDefault:"localhost:6379"`
 	Password string `env:"REDIS_PASS"`
@@ -14,7 +10,7 @@ type Redis struct {
 
 func (c *Redis) Validate() error {
 	if c.Addr == "" {
-		return errors.New(errMsgRedisAddrRequired)
+		return errors.New("redis addr is required")
 	}
 	return nil
 }
