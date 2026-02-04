@@ -44,15 +44,16 @@ func (g *Guard) Handle(ctx context.Context, key string) (bool, error) {
 	return true, nil
 }
 
-func (g *Guard) notify(ip string) {
-	go func() {
-		err := g.publisher.PublishViolation(context.Background(), domain.Violation{
-			Key:       ip,
-			Reason:    domain.ReasonRateLimitExceeded,
-			Timestamp: time.Now(),
-		})
-		if err != nil {
-			slog.Error("failed to publish violation", "err", err, "ip", ip)
-		}
-	}()
+func (g *Guard) notify(key string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := g.publisher.PublishViolation(ctx, domain.Violation{
+		Key:       key,
+		Reason:    domain.ReasonRateLimitExceeded,
+		Timestamp: time.Now(),
+	})
+	if err != nil {
+		slog.Error("failed to publish violation", "error", err, "key", key)
+	}
 }
