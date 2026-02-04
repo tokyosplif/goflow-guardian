@@ -1,5 +1,9 @@
 version: '3.8'
 
+networks:
+  guardian-network:
+    driver: bridge
+
 services:
   app:
     build:
@@ -12,15 +16,37 @@ services:
     environment:
       - APP_PORT=8080
       - APP_ENV=production
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://localhost:8080}
       - REDIS_ADDR=redis:6379
       - KAFKA_BROKERS=kafka:29092
-      - LIMIT_REQUESTS=10
-      - LIMIT_WINDOW_SECONDS=60
+      - LIMIT_REQUESTS=${LIMIT_REQUESTS:-100}
+      - LIMIT_WINDOW_SECONDS=${LIMIT_WINDOW_SECONDS:-60}
     depends_on:
       redis:
         condition: service_healthy
       kafka:
         condition: service_healthy
+    networks:
+      - guardian-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.5'
+        reservations:
+          memory: 64M
+          cpus: '0.25'
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
 
   redis:
     image: redis:7-alpine
@@ -33,13 +59,24 @@ services:
       --save 60 1 
       --appendonly yes 
       --notify-keyspace-events Ex
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
+    networks:
+      - guardian-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+    security_opt:
+      - no-new-privileges:true
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -59,11 +96,20 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    networks:
+      - guardian-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
     healthcheck:
       test: ["CMD-SHELL", "kafka-cluster.sh cluster-id --bootstrap-server localhost:9092 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
+    security_opt:
+      - no-new-privileges:true
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -77,6 +123,16 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       DYNAMIC_CONFIG_ENABLED: 'true'
+    networks:
+      - guardian-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   redis_data:
+    driver: local
