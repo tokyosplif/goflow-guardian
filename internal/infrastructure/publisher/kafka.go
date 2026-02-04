@@ -3,6 +3,7 @@ package publisher
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/segmentio/kafka-go"
 	"github.com/tokyosplif/goflow-guardian/internal/config"
@@ -25,8 +26,20 @@ func NewKafka(cfg config.Kafka) *Kafka {
 }
 
 func (k *Kafka) PublishViolation(ctx context.Context, v domain.Violation) error {
-	b, _ := json.Marshal(v)
-	return k.writer.WriteMessages(ctx, kafka.Message{Key: []byte(v.Key), Value: b})
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("failed to marshal violation: %w", err)
+	}
+
+	err = k.writer.WriteMessages(ctx, kafka.Message{
+		Key:   []byte(v.Key),
+		Value: b,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to write message to kafka: %w", err)
+	}
+
+	return nil
 }
 
 func (k *Kafka) Ping(ctx context.Context) error {
@@ -36,4 +49,8 @@ func (k *Kafka) Ping(ctx context.Context) error {
 	}
 
 	return conn.Close()
+}
+
+func (k *Kafka) Close() error {
+	return k.writer.Close()
 }
