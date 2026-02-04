@@ -27,7 +27,7 @@ func (a *App) Run() error {
 
 	guardUC := limiter.NewGuard(redisStorage, kafkaPublisher, a.cfg.Limiter)
 
-	router := http.NewRouter(guardUC)
+	router := http.NewRouter(guardUC, a.cfg.App)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

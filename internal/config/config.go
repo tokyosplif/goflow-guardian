@@ -40,6 +40,9 @@ func (c *Config) Validate() error {
 	if err := c.Kafka.Validate(); err != nil {
 		return err
 	}
+	if err := c.Limiter.Validate(); err != nil {
+		return err
+	}
 
 	return nil
 }
