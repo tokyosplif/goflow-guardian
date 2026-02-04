@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -11,25 +12,46 @@ import (
 )
 
 const (
-	defaultShutdownTimeout = 5 * time.Second
+	defaultShutdownTimeout = 30 * time.Second
+	defaultReadTimeout     = 10 * time.Second
+	defaultWriteTimeout    = 10 * time.Second
+	defaultIdleTimeout     = 60 * time.Second
 )
 
 func Run(ctx context.Context, cfg config.App, handler http.Handler) error {
 	srv := &http.Server{
-		Addr:    ":" + cfg.Port,
-		Handler: handler,
+		Addr:         ":" + cfg.Port,
+		Handler:      handler,
+		ReadTimeout:  defaultReadTimeout,
+		WriteTimeout: defaultWriteTimeout,
+		IdleTimeout:  defaultIdleTimeout,
 	}
 
+	errChan := make(chan error, 1)
+
 	go func() {
+		slog.Info("HTTP server starting", "port", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			fmt.Printf("listen: %s\n", err)
+			errChan <- fmt.Errorf("failed to start server: %w", err)
 		}
 	}()
 
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+		slog.Info("Shutdown signal received, stopping HTTP server...")
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
-	defer cancel()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+		defer cancel()
 
-	return srv.Shutdown(shutdownCtx)
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			slog.Error("Server forced to shutdown", "error", err)
+			return fmt.Errorf("server shutdown failed: %w", err)
+		}
+
+		slog.Info("HTTP server stopped gracefully")
+		return nil
+
+	case err := <-errChan:
+		return err
+	}
 }
